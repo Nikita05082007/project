@@ -1,0 +1,385 @@
+import asyncio
+
+import psycopg2
+
+from aiogram import Dispatcher, Bot, F, types
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+
+from datetime import date, datetime
+import calendar
+
+from Пароли import Token, host, post, dp_name, password, user
+from Тексты_для_сообщений import day, Month
+
+bot = Bot(Token)
+dp = Dispatcher()
+
+connection = psycopg2.connect(
+    host=host,
+    port=post,
+    dbname=dp_name,
+    user=user,
+    password=password
+)
+connection.autocommit = True
+
+n_month, n_year, a, minut, flag, sent_message, op, c_id_array, c_id_dict = 0, 0, 0, 0, 0, '', 0, [], {}
+
+
+@dp.message(F.text == '/start')
+async def start(message: Message):
+    await message.answer(text='Привет! Отправь мне любое сообщение для старта работы.')
+
+
+class PostgreSQL:
+    def __init__(self):
+        pass
+
+    def record(self, dt, m, y, c_id):
+        b = []
+        with connection.cursor() as cursor:
+            cursor.execute('''
+                    SELECT date FROM users_telegram_bot WHERE chat_id = %s;
+                ''', (str(c_id),))
+
+            for i in cursor.fetchall():
+                b.append(i[0])
+
+            if f'{dt}.{m}.{y}' in b:
+                return True
+
+        return False
+
+    def sql_server(self, c_id, date):
+        p = []
+        with connection.cursor() as cursor:
+            cursor.execute('''
+                    SELECT time, text FROM users_telegram_bot WHERE chat_id = %s AND date = %s;
+                ''', (str(c_id), date))
+
+            for i in cursor.fetchall():
+                p.append([i[0], i[1]])
+
+        return p
+
+    def delete(self, c_id, date, time):
+        with connection.cursor() as cursor:
+            cursor.execute('''
+                    DELETE FROM users_telegram_bot WHERE chat_id = %s AND date = %s AND time = %s;
+                ''', (c_id, date, time))
+
+    def insert(self):
+        poi = int(
+            str(time.year) + f'{'0' * (2 - len(str(time.month)))}{time.month}' + f'{'0' * (2 - len(str(time.daytime)))}{time.daytime}' +
+            f'{'0' * (2 - len(str(time.minute.split(':')[0])))}{time.minute.split(':')[0]}' +
+            f'{'0' * (2 - len(str(time.minute.split(':')[1])))}{time.minute.split(':')[1]}')
+
+        with connection.cursor() as cursor:
+            query = ('INSERT INTO users_telegram_bot (chat_id, date, time, text, sort) '
+                     'VALUES (%s, %s, %s, %s, %s)')
+            params = (time.chat_id, f'{time.daytime}.{time.month}.{time.year}',
+                      time.minute, time.text, poi)
+
+            cursor.execute(query, params)
+
+
+class Time:
+    def __init__(self, year='', month='', daytime='', minute='', text=''):
+        self.year = year
+        self.month = month
+        self.daytime = daytime
+        self.minute = minute
+        self.text = text
+        self.hou = ''
+
+    def minutes(self, p):
+        today_2 = datetime.now().day
+        today_1 = str(datetime.now().time()).split(':')
+
+        if time.daytime == str(today_2) and time.hou == today_1[0]:
+            minute = [
+                [InlineKeyboardButton(text=f'{p}:{'0' * (2 - len(str(d)))}{d}' if d < 60 else ' ',
+                                      callback_data=f'm{p}:{d}') for d in
+                 range(i, i + 6)] for i in range(int(today_1[1]) + 1, 60, 6)]
+
+        else:
+            minute = [
+                [InlineKeyboardButton(text=f'{p}:{'0' * (2 - len(str(d)))}{d}', callback_data=f'm{p}:{d}') for d in
+                 range(i, i + 6)] for i in range(0, 60, 6)]
+
+        minute += [[InlineKeyboardButton(text=f'Назад', callback_data=f'day')]]
+        return minute
+
+    def hours(self):
+        self.year = a[3]
+        self.month = a[4]
+        self.daytime = a[1]
+
+        today_2 = datetime.now().day
+        today_1 = str(datetime.now().time()).split(':')
+
+        if str(today_2) == time.daytime:
+            hour = [[InlineKeyboardButton(text=f'{d}:__' if d < 24 else ' ', callback_data=f'h{d}') for d in
+                     range(i, i + 6)]
+                    for i in range(int(today_1[0]), 24, 6)]
+        else:
+            hour = [[InlineKeyboardButton(text=f'{d}:__', callback_data=f'h{d}') for d in range(i, i + 6)]
+                    for i in range(0, 24, 6)]
+
+        hour += [[InlineKeyboardButton(text=f'Назад', callback_data=f'date')]]
+        return hour
+
+    def calendars(self, c_d):
+        today = str(date.today()).split('-')
+
+        year = int(today[0]) + n_year
+        month = int(today[1]) + n_month
+        cal = calendar.monthcalendar(year, month)
+
+        if n_month > 0 or n_year > 0:
+            today[2] = '1'
+
+        menu = [
+            [InlineKeyboardButton(text=f'{Month[month]} {year}', callback_data=' ')],
+            [InlineKeyboardButton(text=d, callback_data=' ') for d in day]
+        ]
+
+        for c in cal:
+            if int(today[2]) <= max(c) and int(today[2]) not in c:
+                menu += [[InlineKeyboardButton(
+                    text=f'{d}{'✓' * 1 if pgSQl.record(d, month, year, c_d) else ''}' if d != 0 else ' ',
+                    callback_data=f'date {d} {Month[month]} {year} {month} {'yes' * 1 if pgSQl.record(d, month, year, c_d) else ''}' if d != 0 else ' ')
+                    for d in c]]
+            elif int(today[2]) <= max(c) and int(today[2]) in c:
+                menu += [[InlineKeyboardButton(
+                    text=f'{d}{'✓' * 1 if pgSQl.record(d, month, year, c_d) else ''}' if d >= int(today[2]) else ' ',
+                    callback_data=f'date {d} {Month[month]} {year} {month} {'yes' * 1 if pgSQl.record(d, month, year, c_d) else ''}' if d != 0 else ' ')
+                    for d in c]]
+
+        menu += [
+            [InlineKeyboardButton(text=f'⬅️' if month != int(today[1]) or int(today[0]) != year else ' ',
+                                  callback_data=f'left' if month != int(today[1]) or int(today[0]) != year else 'nan'),
+             InlineKeyboardButton(text=f'➡️', callback_data='right')]
+        ]
+
+        return menu
+
+    def qwerty(self, message, ch_id):
+        self.minute = minut
+        self.text = message
+        self.chat_id = ch_id
+
+
+@dp.callback_query(lambda callback_query: True)
+async def callback(callback_query: types.CallbackQuery):
+    global n_month, n_year, a, minut, flag, sent_message, op, c_id_array
+
+    if 'date' == callback_query.data:
+        flag = 1
+        file = InlineKeyboardMarkup(inline_keyboard=time.calendars(callback_query.message.chat.id))
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
+                                    message_id=callback_query.message.message_id,
+                                    text='Ваши заметки\n'
+                                         '\n'
+                                         'Привет! Выбери дату и время для создание новой записи.\n'
+                                         '\n'
+                                         'Если в календаре уже есть запись, то будет отображается этим значком ✓',
+                                    reply_markup=file)
+
+    elif 'pot' in callback_query.data:
+        g = callback_query.data.split()
+        op += 1
+        if op == len(pgSQl.sql_server(callback_query.message.chat.id, g[1])):
+            flag = 0
+        await bot.delete_message(chat_id=callback_query.message.chat.id,
+                                 message_id=callback_query.message.message_id)
+
+
+    elif 'delete' in callback_query.data:
+        g = callback_query.data.split()
+        op += 1
+        if op == len(pgSQl.sql_server(callback_query.message.chat.id, g[1])):
+            flag = 0
+        pgSQl.delete(str(callback_query.message.chat.id), g[1], g[2])
+        await bot.delete_message(chat_id=callback_query.message.chat.id,
+                                 message_id=callback_query.message.message_id)
+        await bot.send_message(chat_id=callback_query.message.chat.id, text=f'Сообщение: {g[3]}. Удалено')
+        flag = 0
+
+        c_id_array.remove(callback_query.message.chat.id)
+
+    elif 'yes' in callback_query.data:
+        a = callback_query.data.split()
+        c_id_dict[callback_query.message.chat.id] += [callback_query.data.split()]
+        flag_2 = [[InlineKeyboardButton(text=f'Добавить запись на {a[1]} {a[2]} {a[3]}', callback_data=f'day')],
+                  [InlineKeyboardButton(text=f'Удалить запись на {a[1]} {a[2]} {a[3]}',
+                                        callback_data=f'dayout {a[1]} {'0' * (2 - len(str(a[4])))}{a[4]} {a[3]}')]]
+        file = InlineKeyboardMarkup(inline_keyboard=time.calendars(callback_query.message.chat.id) + flag_2)
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
+                                    message_id=callback_query.message.message_id,
+                                    text='Ваши заметки\n'
+                                         '\n'
+                                         'Привет! Выбери дату и время для создание новой записи.\n'
+                                         '\n'
+                                         'Если в календаре уже есть запись, то будет отображается этим значком ✓',
+                                    reply_markup=file)
+
+    elif 'dayout' in callback_query.data:
+        await bot.delete_message(chat_id=callback_query.message.chat.id,
+                                 message_id=callback_query.message.message_id)
+        q = callback_query.data.split()
+        z_1 = f'{q[1]}.{q[2][1] if q[2][0] == '0' else q[2]}.{q[3]}'
+        z = f'{q[1]} {Month[int(q[2])]} {q[3]}'
+
+        e = pgSQl.sql_server(callback_query.message.chat.id, z_1)
+        c_id_array += [c_id_array[c_id_array.index(callback_query.message.chat.id)]] * (len(e) - 1)
+
+        for i in range(len(e)):
+            if i != len(e) - 1:
+                flag_1 = [[InlineKeyboardButton(text='Подтвердить', callback_data=f'delete {z_1} {e[i][0]} {e[i][1]}'),
+                           InlineKeyboardButton(text='Отменить', callback_data=f'pot {z_1} {e[i][0]}')]]
+                file = InlineKeyboardMarkup(inline_keyboard=flag_1)
+                await bot.send_message(chat_id=callback_query.message.chat.id,
+                                       text=f'Вы уверены, что хотите удалить сообщение: {e[i][1]}.'
+                                            f' Которое должно быть озвучено {z} в {e[i][0]}',
+                                       reply_markup=file)
+            else:
+                flag_3 = [[InlineKeyboardButton(text='Подтвердить', callback_data=f'delete {z_1} {e[i][0]} {e[i][1]}'),
+                           InlineKeyboardButton(text='Отменить', callback_data='date')]]
+                file = InlineKeyboardMarkup(inline_keyboard=flag_3)
+                await bot.send_message(chat_id=callback_query.message.chat.id,
+                                       text=f'Вы уверены, что хотите удалить сообщение: {e[i][1]}.'
+                                            f' Которое должно быть озвучено {z} в {e[i][0]}',
+                                       reply_markup=file)
+
+    elif 'date' in callback_query.data:
+        c_id_dict[callback_query.message.chat.id] += [callback_query.data.split()]
+        a = callback_query.data.split()
+        flag_4 = [InlineKeyboardButton(text=f'Добавить на {a[1]} {a[2]} {a[3]}', callback_data=f'day')]
+        file = InlineKeyboardMarkup(inline_keyboard=time.calendars(callback_query.message.chat.id) + [flag_4])
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
+                                    message_id=callback_query.message.message_id,
+                                    text='Ваши заметки\n'
+                                         '\n'
+                                         'Привет! Выбери дату и время для создание новой записи.\n'
+                                         '\n'
+                                         'Если в календаре уже есть запись, то будет отображается этим значком ✓',
+                                    reply_markup=file)
+
+    elif 'right' == callback_query.data:
+        n_month += 1
+        if n_month == 12:
+            n_month = 0
+            n_year += 1
+
+        file = InlineKeyboardMarkup(inline_keyboard=time.calendars(callback_query.message.chat.id))
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
+                                    message_id=callback_query.message.message_id,
+                                    text='Ваши заметки\n'
+                                         '\n'
+                                         'Привет! Выбери дату и время для создание новой записи.\n'
+                                         '\n'
+                                         'Если в календаре уже есть запись, то будет отображается этим значком ✓',
+                                    reply_markup=file)
+
+    elif 'left' == callback_query.data:
+        n_month -= 1
+        if n_year > 0 and n_month == -1:
+            n_year -= 1
+            n_month = 11
+
+        file = InlineKeyboardMarkup(inline_keyboard=time.calendars(callback_query.message.chat.id))
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
+                                    message_id=callback_query.message.message_id,
+                                    text='Ваши заметки\n'
+                                         '\n'
+                                         'Привет! Выбери дату и время для создание новой записи.\n'
+                                         '\n'
+                                         'Если в календаре уже есть запись, то будет отображается этим значком ✓',
+                                    reply_markup=file)
+
+    elif 'day' in callback_query.data:
+        file = InlineKeyboardMarkup(inline_keyboard=time.hours())
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
+                                    message_id=callback_query.message.message_id,
+                                    text="Выберите время", reply_markup=file)
+
+    elif 'h' in callback_query.data:
+        c_id_dict[callback_query.message.chat.id] += [callback_query.data.split()]
+        time.hou = callback_query.data[1:]
+        file = InlineKeyboardMarkup(inline_keyboard=time.minutes(callback_query.data[1:]))
+        await bot.edit_message_text(chat_id=callback_query.message.chat.id,
+                                    message_id=callback_query.message.message_id,
+                                    text="Выберите время", reply_markup=file)
+
+    elif 'm' in callback_query.data:
+        c_id_dict[callback_query.message.chat.id] += [callback_query.data.split()]
+        flag = 2
+        await callback_query.message.delete()
+        minut = callback_query.data[1:]
+        sent_message = await bot.send_message(chat_id=callback_query.message.chat.id,
+                                              text='Напиши текстовое сообщение')
+
+    elif callback_query.data == 'SQL':
+        a = [c_id_dict[callback_query.message.chat.id][1][1], c_id_dict[callback_query.message.chat.id][1][2],
+             c_id_dict[callback_query.message.chat.id][1][3],
+             c_id_dict[callback_query.message.chat.id][3][0][1:]]
+        await callback_query.message.delete()
+        c_id_dict[callback_query.message.chat.id] = [0]
+        c_id_array.remove(callback_query.message.chat.id)
+        await bot.send_message(chat_id=callback_query.message.chat.id,
+                               text=f'Сообщение: {time.text} будет озвучено {a[0]} {a[1]} {a[2]} в {a[3]}')
+
+        flag = 0
+        pgSQl.insert()
+
+    else:
+        file = InlineKeyboardMarkup(inline_keyboard=time.calendars(callback_query.message.chat.id))
+        await callback_query.answer(text='Пустая ячейка', reply_markup=file)
+
+
+@dp.message(F.text)
+async def url(message: Message):
+    global flag, n_month, n_year
+
+    if message.chat.id not in c_id_array:
+        c_id_dict[message.chat.id] = [2]
+        c_id_array.append(message.chat.id)
+        n_month, n_year = 0, 0
+        flag = 1
+        await message.delete()
+        file = InlineKeyboardMarkup(inline_keyboard=time.calendars(message.chat.id))
+
+        await message.answer(text='Ваши заметки\n'
+                                  '\n'
+                                  'Привет! Выбери дату и время для создание новой записи.\n'
+                                  '\n'
+                                  'Если в календаре уже есть запись, то будет отображается этим значком ✓',
+                             reply_markup=file)
+
+    elif c_id_dict[message.chat.id][0] == 2 and flag == 2:
+        flag = 1
+        a = [c_id_dict[message.chat.id][1][1], c_id_dict[message.chat.id][1][2], c_id_dict[message.chat.id][1][3],
+             c_id_dict[message.chat.id][3][0][1:]]
+        file = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=f'Подтвердить', callback_data='SQL'),
+            InlineKeyboardButton(text=f'Отмена', callback_data='date')]])
+        time.qwerty(message.text, message.chat.id)
+
+        await message.answer(text=f'Напоминание будет озвучено {a[0]} {a[1]} {a[2]} в {a[3]}. '
+                                  f'сообщение: {message.text}', reply_markup=file)
+
+    else:
+        await message.delete()
+
+
+time = Time()
+pgSQl = PostgreSQL()
+
+
+async def main():
+    await dp.start_polling(bot)
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
