@@ -1,0 +1,72 @@
+import psycopg2
+import datetime
+import time
+
+from Пароли import host, post, dp_name, password, user
+
+connection = psycopg2.connect(
+    host=host,
+    port=post,
+    dbname=dp_name,
+    user=user,
+    password=password
+)
+connection.autocommit = True
+
+with connection.cursor() as cursor:
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users_telegram_bot (
+        chat_id VARCHAR(32) NOT NULL,
+        date VARCHAR(10) NOT NULL,
+        time VARCHAR(5) NOT NULL,
+        text VARCHAR(100000) NOT NULL,
+        sort VARCHAR(12) NOT NULL)
+    ''')
+
+
+def send_data(text, date, say, url='http://192.168.236.167'):
+    import requests
+
+    data = {'date': date, 'text': text, 'say': say}
+
+    requests.post(url, data=data)
+
+
+while True:
+
+    with connection.cursor() as cursor:
+        cursor.execute('''
+                SELECT text, sort FROM users_telegram_bot ORDER BY sort;
+            ''')
+
+        fet = cursor.fetchall()
+
+        if len(fet) > 0:
+            k = ' ' * (20 - (len(fet[0][0])))
+            text = f'{fet[0][0]}{k}'
+            date_1 = fet[0][1]
+
+            date_now = str(datetime.date.today()).split('-')[0] + str(datetime.date.today()).split('-')[1] + \
+                       str(datetime.date.today()).split('-')[2] + str(datetime.datetime.now().time()).split(':')[0] + \
+                       str(datetime.datetime.now().time()).split(':')[1]
+
+
+            time_first = (f'{date_1[6:8]}.'
+                          f'{date_1[4:6]}.'
+                          f'{date_1[:4]} '
+                          f'{date_1[8:10]}:'
+                          f'{date_1[10:12]}')
+            if date_1 == date_now:
+                send_data(text, time_first, '1')
+            else:
+                send_data(text, time_first, '0')
+
+            if date_1 <= date_now:
+                cursor.execute('''
+                        DELETE FROM users_telegram_bot WHERE sort = %s;
+                    ''', (str(date_1), ))
+
+    current_time = datetime.datetime.now()
+    seconds_to_next_minute = 60 - current_time.second
+
+    time.sleep(seconds_to_next_minute)
