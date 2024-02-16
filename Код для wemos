@@ -1,8 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <Arduino.h>
-#include <ESP8266SAM.h>
-#include <AudioOutputI2S.h>
 #include <LiquidCrystal_I2C.h>
 
 const char* ssid = "Samsung";
@@ -10,8 +8,6 @@ const char* password = "v2008k23";
 
 ESP8266WebServer server(80);
 LiquidCrystal_I2C lcd(0x27, 20, 4);  
-AudioOutputI2S *out = NULL;
-ESP8266SAM sam;
 
 
 void handleRoot() {
@@ -26,10 +22,7 @@ void handleRoot() {
 
 
     if (say == "1") {
-    for (int i = 0; i < 3; i++) {
-      sam.Say(out, text.c_str());
-      delay(2000);
-    }
+      tone(3,4000,10000);
   }
 
   server.send(200, "text/plain", "Data received by Wemos D1 Mini");
@@ -44,9 +37,6 @@ void setup() {
   lcd.begin(5, 4);
   lcd.init();                 
   lcd.backlight();
-
-  out = new AudioOutputI2S();
-  out->begin();
 
   WiFi.begin(ssid, password);
 
@@ -63,3 +53,4 @@ void setup() {
 void loop() {
   server.handleClient();
 }
+
